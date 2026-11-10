@@ -1647,7 +1647,7 @@ function IngameManager(info, token) {
 		}
 		Maps.recvRandomOrder(gameState.random);
 		const timeSinceStart = networkEngine.getTS().now() - startTS;
-		const diff = timeSinceStart - gameState.fc * (1e3 / 30);
+		const diff = timeSinceStart - gameState.fc * (1e3 / 120);
 		if (diff > 3e4) {
 			sessionEvent("endSession");
 			return
@@ -25349,7 +25349,7 @@ function MapEditor(mapLoadWindow_, token_) {
                    performStep(8.333333, remainingTime);
 			remainingTime -= 1e3 / 30
 		}
-		const remainder = remainingTime / (1e3 / 30);
+		const remainder = remainingTime / (1e3 / 120);
 		if (currentStep > 0) {
 			canvasGraphics.render(steps[currentStep - 1], steps[currentStep], remainder, gameSettings, getNothing(currentStep))
 		}
@@ -28710,7 +28710,7 @@ function LobbyHandler(_room, _quickMaps) {
 		const deltaTime = currentTime - timeSinceLastFrame;
 		remainingTime += deltaTime;
 		timeSinceLastFrame = currentTime;
-		while (remainingTime > 1e3 / 30) {
+		while (remainingTime > 1e3 / 120) {
 			performStep(8.333333333333334, remainingTime);
 			remainingTime -= 1e3 / 30;
 			if (steps[currentStep].fte == 0) {
@@ -28779,7 +28779,7 @@ function LobbyHandler(_room, _quickMaps) {
 			}
 			game.resetRenderer = false
 		}
-		const remainder = remainingTime / (1e3 / 30);
+		const remainder = remainingTime / (1e3 / 120);
 		if (currentStep >= 1 && document.hidden == false) {
 			const inputs = getInputs(currentStep);
 			canvasHandler.render(steps[currentStep - 1], steps[currentStep], remainder, gameSettings, inputs, currentStep)
