@@ -12368,7 +12368,7 @@ class Player {
 			timeSinceLastAnim = .016666666666666666
 		}
 		this.lastAnimationTime = Date.now();
-		multiplier = timeSinceLastAnim / (1e3 / 60);
+		multiplier = timeSinceLastAnim / (1e3 / 120);
 		for (let i = 0; i < this.particles.length; i++) {
 			const particle = this.particles[i];
 			if (particle.graphics.scale.x <= 0) {
@@ -18639,7 +18639,7 @@ function GraphicsHandler(canvas, type) {
 			f671v361 = .016666666666666666
 		}
 		f638v33 = Date.now();
-		f671v362 = f671v361 / (1e3 / 60);
+		f671v362 = f671v361 / (1e3 / 120);
 		for (let i = 0; i < particles.length; i++) {
 			const particle = particles[i];
 			if (particle.graphics.scale.x <= 0) {
@@ -25347,7 +25347,7 @@ function MapEditor(mapLoadWindow_, token_) {
 		timeSinceLastFrame = currentTime;
                 while (remainingTime > 1e3 / 120) {
                    performStep(8.333333, remainingTime);
-			remainingTime -= 1e3 / 30
+			remainingTime -= 1e3 / 120
 		}
 		const remainder = remainingTime / (1e3 / 120);
 		if (currentStep > 0) {
@@ -28619,7 +28619,7 @@ function LobbyHandler(_room, _quickMaps) {
 			if (steps2[i + 1]) {
 				lastStep = steps2[i + 1]
 			} else {
-				lastStep = physics.step(steps[i], inputs, playerAdmin[i], 30, gameSettings, 1, isTutorial, quickMaps)
+				lastStep = physics.step(steps[i], inputs, playerAdmin[i], 120, gameSettings, 1, isTutorial, quickMaps)
 			}
 			steps[i + 1] = lastStep
 		}
@@ -28700,7 +28700,7 @@ function LobbyHandler(_room, _quickMaps) {
 				if (steps2[i + 1]) {
 					f1071v0 = steps2[i + 1]
 				} else {
-					f1071v0 = physics.step(steps[i], f1071v1, playerAdmin[i], 30, gameSettings, 1, isTutorial, quickMaps)
+					f1071v0 = physics.step(steps[i], f1071v1, playerAdmin[i], 120, gameSettings, 1, isTutorial, quickMaps)
 				}
 				steps[i + 1] = f1071v0
 			}
@@ -28712,7 +28712,7 @@ function LobbyHandler(_room, _quickMaps) {
 		timeSinceLastFrame = currentTime;
 		while (remainingTime > 1e3 / 120) {
 			performStep(8.333333333333334, remainingTime);
-			remainingTime -= 1e3 / 30;
+			remainingTime -= 1e3 / 120;
 			if (steps[currentStep].fte == 0) {
 				let f1071v5 = 0;
 				let f1071v6 = [];
