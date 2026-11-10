@@ -5814,7 +5814,7 @@ function ReplayRenderer() {
 			timeSinceLastFrame = currentTime;
 			const stepLengthAdjusted = el_bgreplay_timescrub.value * 30;
 			while (remainingTime > 1e3 / stepLengthAdjusted) {
-				performStep(30);
+				performStep(8.333333333333334);
 				remainingTime -= 1e3 / stepLengthAdjusted;
 				if (steps[currentStep].fte == 0 || currentStep == currentReplay.es) {
 					self.nextReplay();
@@ -28469,7 +28469,7 @@ function LobbyHandler(_room, _quickMaps) {
 			if (steps2[i + 1]) {
 				lastStep = steps2[i + 1]
 			} else {
-				lastStep = physics.step(steps[i], inputs, playerAdmin[i], 30, gameSettings, 1, isTutorial, quickMaps)
+				lastStep = physics.step(steps[i], inputs, playerAdmin[i], 8.333333333333334, gameSettings, 1, isTutorial, quickMaps)
 			}
 			steps[i + 1] = lastStep
 		}
@@ -28711,7 +28711,7 @@ function LobbyHandler(_room, _quickMaps) {
 		remainingTime += deltaTime;
 		timeSinceLastFrame = currentTime;
 		while (remainingTime > 1e3 / 30) {
-			performStep(30, remainingTime);
+			performStep(8.333333333333334, remainingTime);
 			remainingTime -= 1e3 / 30;
 			if (steps[currentStep].fte == 0) {
 				let f1071v5 = 0;
