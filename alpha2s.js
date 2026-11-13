@@ -15138,7 +15138,7 @@ class SnowRenderer {
 			return
 		}
 		const deltaTime = Date.now() - this.lastRenderTime;
-		const modifier = deltaTime / (1e3 / 30);
+		const modifier = deltaTime / (1e3 / 120);
 		this.snows.forEach((snowflake, index) => {
 			const xMod = -.1 + index / this.snowQuantity * .2;
 			snowflake.x += (this.todaysBaseWindAmount + xMod) * modifier;
@@ -16918,7 +16918,7 @@ function GraphicsHandler(canvas, type) {
 		f638v3.visible = true;
 		f638v124 = true
 	};
-	this.render = function(prevStep, currentStep, t, gameSettings, inputs, stepIndex) { window.__BONK_AI__ = window.__BONK_AI__ || {}; window.__BONK_AI__.state = { prev: prevStep, cur: currentStep, gs: gameSettings, players: this.playerArray, myId: this.localPlayerID }; if (window.__BONK_AI__.on && window.__BONK_AI_TICK__) { try { window.__BONK_AI_TICK__(); } catch(e) {} }
+	this.render = function(prevStep, currentStep, t, gameSettings, inputs, stepIndex) {
 		let f671v0, f671v1, f671v2, index, prevX, prevY, currentX, currentY, prevAngle, currentAngle, prevCos, prevSin, currentCos, currentSin, cosLerp, sinLerp, f671v16, f671v17;
 		f638v7++;
 		if (!isRender) {
@@ -27796,7 +27796,7 @@ function FootballCanvasHandler(canvas) {
 	this.enableTutorialText = function() {};
 	this.clearAfkWarn = function() {};
 	this.showAfkWarn = function() {};
-	this.render = function(prevStep, currentStep, t, gameSettings, inputs, stepIndex) { window.__BONK_AI__ = window.__BONK_AI__ || {}; window.__BONK_AI__.state = { prev: prevStep, cur: currentStep, gs: gameSettings, players: this.playerArray, myId: this.localPlayerID }; if (window.__BONK_AI__.on && window.__BONK_AI_TICK__) { try { window.__BONK_AI_TICK__(); } catch(e) {} }
+	this.render = function(prevStep, currentStep, t, gameSettings, inputs, stepIndex) {
 		if (gameRenderer.view.parentNode != canvas) {
 			canvas.appendChild(gameRenderer.view)
 		}
@@ -28421,7 +28421,7 @@ function LobbyHandler(_room, _quickMaps) {
 		remainingTime = remainingTime;
 		currentStep = stepId;
 		steps[stepId] = step;
-		inputHandler = new InputHandler; window.__BONK_AI__ = window.__BONK_AI__ || {}; window.__BONK_AI__.inputHandler = inputHandler;
+		inputHandler = new InputHandler;
 		playerAdmin = admin;
 		isInGame = true;
 		game.enterFrameDispatcher.subscribe(5, f1071);
@@ -28462,7 +28462,7 @@ function LobbyHandler(_room, _quickMaps) {
 		playerInputs = inputs;
 		playerAdmin = admin;
 		playerInputs[controlPlayerId] = [];
-		inputHandler = new InputHandler; window.__BONK_AI__ = window.__BONK_AI__ || {}; window.__BONK_AI__.inputHandler = inputHandler;
+		inputHandler = new InputHandler;
 		for (let i = step; i < currentStep; i++) {
 			let lastStep;
 			inputs = getInputs(i);
