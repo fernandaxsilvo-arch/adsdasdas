@@ -28694,7 +28694,13 @@ function LobbyHandler(_room, _quickMaps) {
 	};
 	function f1071() {
 
-
+    window.__bonkDebug = {
+        playerInputs,
+        controlPlayerId,
+        currentStep,
+        playerArray,
+        steps
+    };
 
 		if (currentStep2 != Infinity) {
 			for (let i = currentStep2; i < currentStep; i++) {
