@@ -1647,7 +1647,7 @@ function IngameManager(info, token) {
 		}
 		Maps.recvRandomOrder(gameState.random);
 		const timeSinceStart = networkEngine.getTS().now() - startTS;
-		const diff = timeSinceStart - gameState.fc * (1e3 / 120);
+		const diff = timeSinceStart - gameState.fc * (1e3 / 30);
 		if (diff > 3e4) {
 			sessionEvent("endSession");
 			return
@@ -15138,7 +15138,7 @@ class SnowRenderer {
 			return
 		}
 		const deltaTime = Date.now() - this.lastRenderTime;
-		const modifier = deltaTime / (1e3 / 120);
+		const modifier = deltaTime / (1e3 / 30);
 		this.snows.forEach((snowflake, index) => {
 			const xMod = -.1 + index / this.snowQuantity * .2;
 			snowflake.x += (this.todaysBaseWindAmount + xMod) * modifier;
@@ -25345,11 +25345,11 @@ function MapEditor(mapLoadWindow_, token_) {
 		deltaTime = Math.min(deltaTime, 50);
 		remainingTime += deltaTime;
 		timeSinceLastFrame = currentTime;
-		while (remainingTime > 1e3 / 120) {
+		while (remainingTime > 1e3 / 30) {
 			performStep(30);
-			remainingTime -= 1e3 / 120
+			remainingTime -= 1e3 / 30
 		}
-		const remainder = remainingTime / (1e3 / 120);
+		const remainder = remainingTime / (1e3 / 30);
 		if (currentStep > 0) {
 			canvasGraphics.render(steps[currentStep - 1], steps[currentStep], remainder, gameSettings, getNothing(currentStep))
 		}
@@ -28719,9 +28719,9 @@ function LobbyHandler(_room, _quickMaps) {
 		const deltaTime = currentTime - timeSinceLastFrame;
 		remainingTime += deltaTime;
 		timeSinceLastFrame = currentTime;
-		while (remainingTime > 1e3 / 120) {
+		while (remainingTime > 1e3 / 30) {
 			performStep(30, remainingTime);
-			remainingTime -= 1e3 / 120;
+			remainingTime -= 1e3 / 30;
 			if (steps[currentStep].fte == 0) {
 				let f1071v5 = 0;
 				let f1071v6 = [];
@@ -28788,7 +28788,7 @@ function LobbyHandler(_room, _quickMaps) {
 			}
 			game.resetRenderer = false
 		}
-		const remainder = remainingTime / (1e3 / 120);
+		const remainder = remainingTime / (1e3 / 30);
 		if (currentStep >= 1 && document.hidden == false) {
 			const inputs = getInputs(currentStep);
 			canvasHandler.render(steps[currentStep - 1], steps[currentStep], remainder, gameSettings, inputs, currentStep)
