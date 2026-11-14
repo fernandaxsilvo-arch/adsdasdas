@@ -11164,6 +11164,14 @@ function InputHandler() {
 	let right = false;
 	let heavy = false;
 	let swing = false;
+
+let upTap = false,
+ downTap = false,
+ leftTap = false,
+ rightTap = false,
+ heavyTap = false,
+ swingTap = false;
+
 	let isKeyboardLocked = true;
 	const downListeners = [];
 	const upListeners = [];
@@ -11333,16 +11341,39 @@ function InputHandler() {
 	swing3.release = function() {
 		swing = false
 	};
-	this.getInputs = function() {
-		const f459v0 = {};
-		f459v0.left = left;
-		f459v0.right = right;
-		f459v0.up = up;
-		f459v0.down = down;
-		f459v0.action = heavy;
-		f459v0.action2 = swing;
-		return f459v0
-	};
+
+    // ══════ TAP LATCHING ══════
+    const _wrapPress = function(kb, flag) {
+        const _orig = kb.press;
+        kb.press = function() {
+            if (_orig) _orig();
+            if (flag === "left")  leftTap  = true;
+            if (flag === "right") rightTap = true;
+            if (flag === "up")    upTap    = true;
+            if (flag === "down")  downTap  = true;
+            if (flag === "heavy") heavyTap = true;
+            if (flag === "swing") swingTap = true;
+        };
+    };
+    _wrapPress(left1,  "left");  _wrapPress(left2,  "left");  _wrapPress(left3,  "left");
+    _wrapPress(right1, "right"); _wrapPress(right2, "right"); _wrapPress(right3, "right");
+    _wrapPress(up1,    "up");    _wrapPress(up2,    "up");    _wrapPress(up3,    "up");
+    _wrapPress(down1,  "down");  _wrapPress(down2,  "down");  _wrapPress(down3,  "down");
+    _wrapPress(heavy1, "heavy"); _wrapPress(heavy2, "heavy"); _wrapPress(heavy3, "heavy");
+    _wrapPress(swing1, "swing"); _wrapPress(swing2, "swing"); _wrapPress(swing3, "swing");
+    // ══════ FIM TAP LATCHING ══════
+
+    this.getInputs = function() {
+        const f459v0 = {};
+        f459v0.left    = left    || leftTap;
+        f459v0.right   = right   || rightTap;
+        f459v0.up      = up      || upTap;
+        f459v0.down    = down    || downTap;
+        f459v0.action  = heavy   || heavyTap;
+        f459v0.action2 = swing   || swingTap;
+        upTap = downTap = leftTap = rightTap = heavyTap = swingTap = false;
+        return f459v0
+    };
 	this.lockKeyboard = function() {
 		isKeyboardLocked = true
 	};
@@ -11668,15 +11699,50 @@ class PlayerRenderer {
 			prevY = currentY;
 			prevAngle = currentAngle
 		}
-		this.container.x = (1 - t) * prevX + t * currentX;
-		this.container.y = (1 - t) * prevY + t * currentY;
+const _targetX = (1 - t) * prevX + t * currentX;
+const _targetY = (1 - t) * prevY + t * currentY;
+if (this.local) {
+    this.container.x = _targetX;
+    this.container.y = _targetY;
+    this._sX = _targetX;
+    this._sY = _targetY;
+} else {
+    if (this._sX === undefined) {
+        this._sX = _targetX;
+        this._sY = _targetY;
+    } else {
+        const _dx = _targetX - this._sX;
+        const _dy = _targetY - this._sY;
+        const _dist = Math.sqrt(_dx * _dx + _dy * _dy);
+        const _thr = this.radius * 2.5;
+        const _rate = _dist > _thr ? 0.70 : 0.55;
+        this._sX += _dx * _rate;
+        this._sY += _dy * _rate;
+    }
+    this.container.x = this._sX;
+    this.container.y = this._sY;
+}
 		const cosPrevAngle = Math.cos(prevAngle);
 		const sinPrevAngle = Math.sin(prevAngle);
 		const cosCurrentAngle = Math.cos(currentAngle);
 		const sinCurrentAngle = Math.sin(currentAngle);
 		const cosLerp = (1 - t) * cosPrevAngle + t * cosCurrentAngle;
 		const sinLerp = (1 - t) * sinPrevAngle + t * sinCurrentAngle;
-		this.container.rotation = Math.atan2(sinLerp, cosLerp);
+		const _targetAngle = Math.atan2(sinLerp, cosLerp);
+if (this.local) {
+    this.container.rotation = _targetAngle;
+    this._sA = _targetAngle;
+} else {
+    if (this._sA === undefined) {
+        this._sA = _targetAngle;
+    } else {
+        let _da = _targetAngle - this._sA;
+        while (_da > Math.PI) _da -= Math.PI * 2;
+        while (_da < -Math.PI) _da += Math.PI * 2;
+        this._sA += _da * 0.4;
+    }
+    this.container.rotation = this._sA;
+}
 		if (currentStep.discs[this.playerID].a1 && this.gameSettings.mo != "bs" && !(currentStep.discs[this.playerID].ds > 0)) {
 			this.outline.alpha = Math.max(currentStep.discs[this.playerID].a1a / 1e3, .25)
 		} else {
