@@ -1,5 +1,38 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
+
+    // ═══════════ RNA PHYSICS TUNE v1 ═══════════
+    (function() {
+        try {
+            const b2Settings = box2d.Common.b2Settings;
+
+            // ─── Precisão de colisão ───
+            b2Settings.b2_linearSlop = 0.002;            // default 0.005 → 2.5x mais apertado (bola penetra menos em paredes)
+            b2Settings.b2_maxLinearCorrection = 0.4;     // default 0.2 → snap-back 2x mais rápido quando há penetração
+            b2Settings.b2_velocityThreshold = 0.7;       // default 1.0 → bounce detectado em velocidades menores
+            b2Settings.b2_maxTranslation = 1.5;          // default 2.0 → step máximo 25% menor (menos tunneling)
+            b2Settings.b2_maxTranslationSquared = 2.25;  // = 1.5^2
+
+            // ─── Substepping: 3 subpassos por step externo ───
+            // O jogo chama world.Step(dt, 8, 3) a cada tick.
+            // Substitui por 3 chamadas de Step(dt/3, 8, 3) → 3x resolução de colisão.
+            // Mesmo tick rate, física mais fina.
+            const SUBSTEPS = 3;
+            const origStep = box2d.Dynamics.b2World.prototype.Step;
+            box2d.Dynamics.b2World.prototype.Step = function(dt, vIter, pIter) {
+                const sdt = dt / SUBSTEPS;
+                for (let i = 0; i < SUBSTEPS; i++) {
+                    origStep.call(this, sdt, vIter, pIter);
+                }
+            };
+
+            console.log("%c[RNA-PHYS] v1 ativo — substep=3, slop=0.002, maxCorr=0.4, maxTrans=1.5", "color:#0f0;font-weight:bold");
+        } catch (e) {
+            console.error("[RNA-PHYS] erro:", e);
+        }
+    })();
+    // ═══════════════════════════════════════════
+	
 function SkinManager() {
 	let editSkin, skinLayerSelectWindow;
 	function skinLayerZoom(e) {
