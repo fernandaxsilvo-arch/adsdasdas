@@ -1,5 +1,46 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
+
+	    // ═══════════ SMOOTH MOVEMENT v1 ═══════════
+    (function() {
+        try {
+            const b2Settings = box2d.Common.b2Settings;
+            const b2World    = box2d.Dynamics.b2World;
+
+            // Precisão de contato — bola para de "travar" em parede
+            b2Settings.b2_linearSlop           = 0.001;
+            b2Settings.b2_maxLinearCorrection  = 0.5;
+            b2Settings.b2_velocityThreshold    = 0.5;
+            b2Settings.b2_maxTranslation       = 1.2;
+            b2Settings.b2_maxTranslationSquared = 1.44;
+
+            // Fixed timestep + substepping
+            const FIXED_DT   = 1 / 120;   // passo fixo
+            const SUBSTEPS   = 3;         // 3 subpassos por step fixo
+            const MAX_ACCUM  = 0.25;      // clamp pra evitar spiral of death
+            let   accumulator = 0;
+
+            const origStep = b2World.prototype.Step;
+            b2World.prototype.Step = function(dt, vIter, pIter) {
+                // Se o jogo já passa dt fixo, só substep. Se não, normaliza.
+                const inDt = (dt > 0 && dt < 0.5) ? dt : FIXED_DT;
+                accumulator = Math.min(accumulator + inDt, MAX_ACCUM);
+
+                const sdt = FIXED_DT / SUBSTEPS;
+                while (accumulator >= FIXED_DT) {
+                    for (let i = 0; i < SUBSTEPS; i++) {
+                        origStep.call(this, sdt, vIter, pIter);
+                    }
+                    accumulator -= FIXED_DT;
+                }
+            };
+
+            console.log("%c[SMOOTH] substep=3, fixedDt=1/120, slop=0.001", "color:#0f0;font-weight:bold");
+        } catch (e) {
+            console.error("[SMOOTH] erro:", e);
+        }
+    })();
+    // ═══════════════════════════════════════════
 	
 function SkinManager() {
 	let editSkin, skinLayerSelectWindow;
