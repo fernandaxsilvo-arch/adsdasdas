@@ -1,63 +1,40 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
 
-    // ═══════════ ENGINE SMOOTH ═══════════
+        // ═══════════ TIMING UPGRADE ═══════════
     (function() {
         try {
-            // ─── 1. TIMING FIXO ───
-            // O motor roda física no dt que chega. Se teu frame variou,
-            // dt variou, movimento saiu diferente. Fixar em 1/120 garante
-            // que cada step é sempre igual, e o sub-step resolve a curva
-            // com 4x mais amostras. Movimento fica reproduzível.
             const b2World = box2d.Dynamics.b2World;
-            const FIXED_DT = 1 / 120;
-            const SUBSTEPS = 4;
-            const MAX_ACCUM = 0.05;
-            let accum = 0;
+
+            const TICK       = 1 / 240;   // sim roda 240x por segundo
+            const SUBSTEPS   = 2;         // 2 passos por tick = 480Hz de resolução efetiva
+            const MAX_ACCUM  = 0.04;      // clamp anti spiral-of-death (se travar, não explode)
+            const MAX_STEPS  = 8;         // safety: nunca mais que 8 ticks por frame
+            let   accum      = 0;
 
             const origStep = b2World.prototype.Step;
             b2World.prototype.Step = function(dt, vIter, pIter) {
-                accum += (dt > 0 && dt < 0.5) ? dt : FIXED_DT;
+                // Normaliza o dt que o jogo manda pra um acumulador fixo.
+                // Se o frame veio 200fps ou 90fps, o sim tick é sempre 1/240.
+                accum += (dt > 0 && dt < 0.5) ? dt : TICK;
                 if (accum > MAX_ACCUM) accum = MAX_ACCUM;
-                const sdt = FIXED_DT / SUBSTEPS;
-                while (accum >= FIXED_DT) {
+
+                const sdt = TICK / SUBSTEPS;
+                let n = 0;
+                while (accum >= TICK && n < MAX_STEPS) {
                     for (let i = 0; i < SUBSTEPS; i++) {
                         origStep.call(this, sdt, vIter, pIter);
                     }
-                    accum -= FIXED_DT;
+                    accum -= TICK;
+                    n++;
                 }
             };
 
-            // ─── 2. RENDER SUAVE ───
-            const waitPixi = setInterval(() => {
-                if (typeof PIXI === 'undefined') return;
-                clearInterval(waitPixi);
-
-                if (PIXI.settings) {
-                    PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.LINEAR;
-                    PIXI.settings.ROUND_PIXELS = false;
-                }
-                if (PIXI.Ticker && PIXI.Ticker.shared) {
-                    PIXI.Ticker.shared.minFPS = 0;
-                    PIXI.Ticker.shared.maxFPS = 0;
-                    PIXI.Ticker.shared.speed  = 1;
-                }
-                if (PIXI.Renderer) {
-                    const oR = PIXI.Renderer.prototype.render;
-                    PIXI.Renderer.prototype.render = function(s, opt) {
-                        this.roundPixels = false;
-                        return oR.call(this, s, opt);
-                    };
-                }
-
-                console.log("%c[ENGINE-SMOOTH] ativo", "color:#0f0;font-weight:bold");
-            }, 100);
-
+            console.log("%c[TIMING] sim=240Hz, substep=2 (480Hz eff), fixed dt", "color:#0f0;font-weight:bold");
         } catch (e) {
-            console.error("[ENGINE-SMOOTH] erro:", e);
+            console.error("[TIMING] erro:", e);
         }
     })();
-    // ═══════════════════════════════════════════
 	
 function SkinManager() {
 	let editSkin, skinLayerSelectWindow;
