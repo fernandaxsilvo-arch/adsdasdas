@@ -1,23 +1,22 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
 
-     // ═══════════ MAX SMOOTH (240Hz sim + visual interp) ═══════════
+         // ═══════════ ENGINE MAX (sem dessinc) ═══════════
     (function() {
         try {
             const b2World = box2d.Dynamics.b2World;
 
-            const TICK      = 1 / 240;   // física fixa em 240Hz
-            const SUBSTEPS  = 2;         // 480Hz de resolução efetiva
+            // 240Hz fixo. Teto útil. Acima dessinc.
+            const TICK      = 1 / 240;
+            const SUBSTEPS  = 2;         // 480Hz effective
             const MAX_ACCUM = 0.04;
             const MAX_STEPS = 8;
             let   accum     = 0;
-            let   alpha     = 0;         // fração entre ticks (render interp)
 
             const origStep = b2World.prototype.Step;
             b2World.prototype.Step = function(dt, vIter, pIter) {
                 accum += (dt > 0 && dt < 0.5) ? dt : TICK;
                 if (accum > MAX_ACCUM) accum = MAX_ACCUM;
-
                 const sdt = TICK / SUBSTEPS;
                 let n = 0;
                 while (accum >= TICK && n < MAX_STEPS) {
@@ -27,10 +26,27 @@ requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], functio
                     accum -= TICK;
                     n++;
                 }
-                alpha = accum / TICK;    // 0..1, quanto passou do último tick
             };
 
-            // ── Ticker do PIXI: garante render a cada rAF, sem cap ──
+            // ─── Canvas: desync + sem leitura ───
+            const origCtx = HTMLCanvasElement.prototype.getContext;
+            HTMLCanvasElement.prototype.getContext = function(type, attrs) {
+                if (type === 'webgl' || type === 'webgl2' || type === '2d') {
+                    attrs = attrs || {};
+                    attrs.desynchronized        = true;   // bypass compositor buffer
+                    attrs.antialias             = false;
+                    attrs.powerPreference       = 'high-performance';
+                    attrs.failIfMajorPerformanceCaveat = false;
+                    attrs.willReadFrequently    = false;
+                    attrs.alpha                 = false;   // menos banda
+                    attrs.depth                 = false;
+                    attrs.stencil               = false;
+                    attrs.preserveDrawingBuffer = false;
+                }
+                return origCtx.call(this, type, attrs);
+            };
+
+            // ─── PIXI: ticker livre, sem pixel snap ───
             const waitPixi = setInterval(function() {
                 if (typeof PIXI === 'undefined') return;
                 clearInterval(waitPixi);
@@ -38,28 +54,26 @@ requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], functio
                 if (PIXI.Ticker && PIXI.Ticker.shared) {
                     PIXI.Ticker.shared.maxFPS = 0;
                     PIXI.Ticker.shared.minFPS = 0;
-                    PIXI.Ticker.shared.autoStart = true;
                 }
-
-                // ── Render interp: puxa posições visuais entre último e penúltimo tick ──
-                // Nota: bonk.io não expõe lista de entidades pública, então
-                // aplicamos no stage do PIXI via transform cacheado.
-                // Se o jogo não usar PIXI.stage pra entidades, este bloco é no-op seguro.
-                if (PIXI.Renderer && PIXI.Renderer.prototype.render) {
+                if (PIXI.settings) {
+                    PIXI.settings.ROUND_PIXELS = false;
+                    PIXI.settings.SCALE_MODE   = PIXI.SCALE_MODES.LINEAR;
+                }
+                if (PIXI.Renderer) {
                     const oR = PIXI.Renderer.prototype.render;
-                    PIXI.Renderer.prototype.render = function(stage, opt) {
-                        return oR.call(this, stage, opt);
+                    PIXI.Renderer.prototype.render = function(s, opt) {
+                        this.roundPixels = false;
+                        return oR.call(this, s, opt);
                     };
                 }
-
-                console.log("%c[MAX-SMOOTH] sim=240Hz substep=2 (480Hz eff), visual interp=on", "color:#0f0;font-weight:bold");
             }, 100);
 
+            console.log("%c[ENGINE-MAX] 240Hz sim / 480Hz eff / canvas desync / pixi free", "color:#0f0;font-weight:bold");
         } catch (e) {
-            console.error("[MAX-SMOOTH] erro:", e);
+            console.error("[ENGINE-MAX] erro:", e);
         }
     })();
-    // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════
 	
 function SkinManager() {
 	let editSkin, skinLayerSelectWindow;
