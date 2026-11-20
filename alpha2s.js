@@ -1,6 +1,78 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
 
+	    // ═══════════ PRECISION CONTROL ═══════════
+    (function() {
+        // ─── captura teclas no instante do evento ───
+        const held = new Set();
+        const ALIAS = {
+            KeyW: 'up',    ArrowUp:    'up',
+            KeyS: 'down',  ArrowDown:  'down',
+            KeyA: 'left',  ArrowLeft:  'left',
+            KeyD: 'right', ArrowRight: 'right',
+            Space: 'jump'
+        };
+        window.addEventListener('keydown', e => {
+            if (!e.repeat) held.add(e.code);
+        }, { capture: true });
+        window.addEventListener('keyup', e => {
+            held.delete(e.code);
+        }, { capture: true });
+        window.addEventListener('blur', () => held.clear(), { capture: true });
+
+        // ─── descoberta: mostra o que o jogo usa ───
+        setTimeout(() => {
+            const info = {};
+            if (window.xo) {
+                info.xo_keys = Object.keys(window.xo).filter(k => /key|ctrl|control|input/i.test(k));
+                if (window.xo.customControls) {
+                    info.customControls = Object.keys(window.xo.customControls);
+                }
+            }
+            if (window.game_) {
+                info.game_keys = Object.keys(window.game_).filter(k => /key|ctrl|control|input/i.test(k));
+            }
+            console.log("%c[PRECISION] discovery:", "color:#0f0", info);
+        }, 3000);
+
+        // ─── patch Step: injeta input antes de cada tick ───
+        const tryPatch = () => {
+            if (typeof box2d === 'undefined' || !box2d.Dynamics || !box2d.Dynamics.b2World) return false;
+            const origStep = box2d.Dynamics.b2World.prototype.Step;
+            if (origStep.__rna_patched) return true;
+
+            box2d.Dynamics.b2World.prototype.Step = function(dt, vIter, pIter) {
+                const cc = window.xo && window.xo.customControls;
+                if (cc && typeof cc === 'object') {
+                    try {
+                        for (const code of held) {
+                            const slot = ALIAS[code];
+                            if (slot && slot in cc) cc[slot] = true;
+                        }
+                        // limpa teclas soltas (que estão em cc mas não em held)
+                        for (const slot in ALIAS) {}
+                        for (const code in ALIAS) {} // noop
+                        // checa cada slot e desliga se nenhuma tecla correspondente está held
+                        const slots = { up:['KeyW','ArrowUp'], down:['KeyS','ArrowDown'], left:['KeyA','ArrowLeft'], right:['KeyD','ArrowRight'], jump:['Space'] };
+                        for (const s in slots) {
+                            if (s in cc) cc[s] = slots[s].some(k => held.has(k));
+                        }
+                    } catch (e) {}
+                }
+                return origStep.call(this, dt, vIter, pIter);
+            };
+            box2d.Dynamics.b2World.prototype.Step.__rna_patched = true;
+            console.log("%c[PRECISION] input-in-step ativo", "color:#0f0;font-weight:bold");
+            return true;
+        };
+
+        const iv = setInterval(() => {
+            if (tryPatch()) clearInterval(iv);
+        }, 200);
+        setTimeout(() => clearInterval(iv), 30000); // para de tentar após 30s
+    })();
+    // ═══════════════════════════════════════════════
+
 	    // ═══════════ MAX SMOOTH (240Hz sim + visual interp) ═══════════
     (function() {
         try {
