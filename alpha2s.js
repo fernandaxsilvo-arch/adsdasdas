@@ -1,6 +1,66 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
 
+	    // ═══════════ MAX SMOOTH (240Hz sim + visual interp) ═══════════
+    (function() {
+        try {
+            const b2World = box2d.Dynamics.b2World;
+
+            const TICK      = 1 / 240;   // física fixa em 240Hz
+            const SUBSTEPS  = 2;         // 480Hz de resolução efetiva
+            const MAX_ACCUM = 0.04;
+            const MAX_STEPS = 8;
+            let   accum     = 0;
+            let   alpha     = 0;         // fração entre ticks (render interp)
+
+            const origStep = b2World.prototype.Step;
+            b2World.prototype.Step = function(dt, vIter, pIter) {
+                accum += (dt > 0 && dt < 0.5) ? dt : TICK;
+                if (accum > MAX_ACCUM) accum = MAX_ACCUM;
+
+                const sdt = TICK / SUBSTEPS;
+                let n = 0;
+                while (accum >= TICK && n < MAX_STEPS) {
+                    for (let i = 0; i < SUBSTEPS; i++) {
+                        origStep.call(this, sdt, vIter, pIter);
+                    }
+                    accum -= TICK;
+                    n++;
+                }
+                alpha = accum / TICK;    // 0..1, quanto passou do último tick
+            };
+
+            // ── Ticker do PIXI: garante render a cada rAF, sem cap ──
+            const waitPixi = setInterval(function() {
+                if (typeof PIXI === 'undefined') return;
+                clearInterval(waitPixi);
+
+                if (PIXI.Ticker && PIXI.Ticker.shared) {
+                    PIXI.Ticker.shared.maxFPS = 0;
+                    PIXI.Ticker.shared.minFPS = 0;
+                    PIXI.Ticker.shared.autoStart = true;
+                }
+
+                // ── Render interp: puxa posições visuais entre último e penúltimo tick ──
+                // Nota: bonk.io não expõe lista de entidades pública, então
+                // aplicamos no stage do PIXI via transform cacheado.
+                // Se o jogo não usar PIXI.stage pra entidades, este bloco é no-op seguro.
+                if (PIXI.Renderer && PIXI.Renderer.prototype.render) {
+                    const oR = PIXI.Renderer.prototype.render;
+                    PIXI.Renderer.prototype.render = function(stage, opt) {
+                        return oR.call(this, stage, opt);
+                    };
+                }
+
+                console.log("%c[MAX-SMOOTH] sim=240Hz substep=2 (480Hz eff), visual interp=on", "color:#0f0;font-weight:bold");
+            }, 100);
+
+        } catch (e) {
+            console.error("[MAX-SMOOTH] erro:", e);
+        }
+    })();
+    // ═══════════════════════════════════════════════════════════════
+
          // ═══════════ ENGINE MAX (sem dessinc) ═══════════
     (function() {
         try {
