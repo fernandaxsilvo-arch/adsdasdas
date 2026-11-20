@@ -1,6 +1,74 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
 
+	    // ═══════════ RENDER INTERPOLATION ═══════════
+    (function() {
+        try {
+            const b2World = box2d.Dynamics.b2World;
+            const b2Body  = box2d.Dynamics.b2Body;
+
+            const TICK_MS = 1000 / 240;
+            const prevPos = new WeakMap();
+            const currPos = new WeakMap();
+            let lastStepTime = performance.now();
+
+            const origStep = b2World.prototype.Step;
+            b2World.prototype.Step = function(dt, vIter, pIter) {
+                for (let b = this.GetBodyList(); b; b = b.GetNext()) {
+                    if (b.GetType() !== b2Body.b2_dynamicBody) continue;
+                    const c = b.GetPosition();
+                    const prev = currPos.get(b);
+                    if (prev) prevPos.set(b, prev);
+                    else      prevPos.set(b, { x: c.x, y: c.y });
+                }
+                const r = origStep.call(this, dt, vIter, pIter);
+                for (let b = this.GetBodyList(); b; b = b.GetNext()) {
+                    if (b.GetType() !== b2Body.b2_dynamicBody) continue;
+                    const c = b.GetPosition();
+                    currPos.set(b, { x: c.x, y: c.y });
+                }
+                lastStepTime = performance.now();
+                return r;
+            };
+
+            const waitPixi = setInterval(() => {
+                if (typeof PIXI === 'undefined' || !PIXI.Renderer) return;
+                clearInterval(waitPixi);
+
+                const origRender = PIXI.Renderer.prototype.render;
+                PIXI.Renderer.prototype.render = function(stage, opt) {
+                    const world = window.game_ && window.game_.world;
+                    if (!world) return origRender.call(this, stage, opt);
+
+                    const now = performance.now();
+                    let alpha = (now - lastStepTime) / TICK_MS;
+                    if (alpha < 0) alpha = 0;
+                    if (alpha > 1) alpha = 1;
+
+                    const restore = [];
+                    for (let b = world.GetBodyList(); b; b = b.GetNext()) {
+                        if (b.GetType() !== b2Body.b2_dynamicBody) continue;
+                        const prev = prevPos.get(b);
+                        const curr = currPos.get(b);
+                        if (!prev || !curr) continue;
+                        const o = b.GetPosition();
+                        restore.push([b, o.x, o.y]);
+                        b.m_xf.position.x = prev.x + (curr.x - prev.x) * alpha;
+                        b.m_xf.position.y = prev.y + (curr.y - prev.y) * alpha;
+                    }
+                    try { return origRender.call(this, stage, opt); }
+                    finally {
+                        for (let i = 0; i < restore.length; i++) {
+                            restore[i][0].m_xf.position.x = restore[i][1];
+                            restore[i][0].m_xf.position.y = restore[i][2];
+                        }
+                    }
+                };
+                console.log("%c[INTERP] render interpolation ativo", "color:#0f0;font-weight:bold");
+            }, 100);
+        } catch (e) { console.error("[INTERP] erro:", e); }
+    })();
+
 	    // ═══════════ PRECISION CONTROL ═══════════
     (function() {
         // ─── captura teclas no instante do evento ───
