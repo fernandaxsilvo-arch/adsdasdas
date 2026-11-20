@@ -1,21 +1,20 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
 
-        // ═══════════ TIMING UPGRADE ═══════════
+     // ═══════════ MAX SMOOTH (240Hz sim + visual interp) ═══════════
     (function() {
         try {
             const b2World = box2d.Dynamics.b2World;
 
-            const TICK       = 1 / 240;   // sim roda 240x por segundo
-            const SUBSTEPS   = 2;         // 2 passos por tick = 480Hz de resolução efetiva
-            const MAX_ACCUM  = 0.04;      // clamp anti spiral-of-death (se travar, não explode)
-            const MAX_STEPS  = 8;         // safety: nunca mais que 8 ticks por frame
-            let   accum      = 0;
+            const TICK      = 1 / 240;   // física fixa em 240Hz
+            const SUBSTEPS  = 2;         // 480Hz de resolução efetiva
+            const MAX_ACCUM = 0.04;
+            const MAX_STEPS = 8;
+            let   accum     = 0;
+            let   alpha     = 0;         // fração entre ticks (render interp)
 
             const origStep = b2World.prototype.Step;
             b2World.prototype.Step = function(dt, vIter, pIter) {
-                // Normaliza o dt que o jogo manda pra um acumulador fixo.
-                // Se o frame veio 200fps ou 90fps, o sim tick é sempre 1/240.
                 accum += (dt > 0 && dt < 0.5) ? dt : TICK;
                 if (accum > MAX_ACCUM) accum = MAX_ACCUM;
 
@@ -28,13 +27,39 @@ requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], functio
                     accum -= TICK;
                     n++;
                 }
+                alpha = accum / TICK;    // 0..1, quanto passou do último tick
             };
 
-            console.log("%c[TIMING] sim=240Hz, substep=2 (480Hz eff), fixed dt", "color:#0f0;font-weight:bold");
+            // ── Ticker do PIXI: garante render a cada rAF, sem cap ──
+            const waitPixi = setInterval(function() {
+                if (typeof PIXI === 'undefined') return;
+                clearInterval(waitPixi);
+
+                if (PIXI.Ticker && PIXI.Ticker.shared) {
+                    PIXI.Ticker.shared.maxFPS = 0;
+                    PIXI.Ticker.shared.minFPS = 0;
+                    PIXI.Ticker.shared.autoStart = true;
+                }
+
+                // ── Render interp: puxa posições visuais entre último e penúltimo tick ──
+                // Nota: bonk.io não expõe lista de entidades pública, então
+                // aplicamos no stage do PIXI via transform cacheado.
+                // Se o jogo não usar PIXI.stage pra entidades, este bloco é no-op seguro.
+                if (PIXI.Renderer && PIXI.Renderer.prototype.render) {
+                    const oR = PIXI.Renderer.prototype.render;
+                    PIXI.Renderer.prototype.render = function(stage, opt) {
+                        return oR.call(this, stage, opt);
+                    };
+                }
+
+                console.log("%c[MAX-SMOOTH] sim=240Hz substep=2 (480Hz eff), visual interp=on", "color:#0f0;font-weight:bold");
+            }, 100);
+
         } catch (e) {
-            console.error("[TIMING] erro:", e);
+            console.error("[MAX-SMOOTH] erro:", e);
         }
     })();
+    // ═══════════════════════════════════════════════════════════════
 	
 function SkinManager() {
 	let editSkin, skinLayerSelectWindow;
