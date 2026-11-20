@@ -1,43 +1,60 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
 
-	    // ═══════════ SMOOTH MOVEMENT v1 ═══════════
+    // ═══════════ ENGINE SMOOTH ═══════════
     (function() {
         try {
-            const b2Settings = box2d.Common.b2Settings;
-            const b2World    = box2d.Dynamics.b2World;
-
-            // Precisão de contato — bola para de "travar" em parede
-            b2Settings.b2_linearSlop           = 0.001;
-            b2Settings.b2_maxLinearCorrection  = 0.5;
-            b2Settings.b2_velocityThreshold    = 0.5;
-            b2Settings.b2_maxTranslation       = 1.2;
-            b2Settings.b2_maxTranslationSquared = 1.44;
-
-            // Fixed timestep + substepping
-            const FIXED_DT   = 1 / 120;   // passo fixo
-            const SUBSTEPS   = 3;         // 3 subpassos por step fixo
-            const MAX_ACCUM  = 0.25;      // clamp pra evitar spiral of death
-            let   accumulator = 0;
+            // ─── 1. TIMING FIXO ───
+            // O motor roda física no dt que chega. Se teu frame variou,
+            // dt variou, movimento saiu diferente. Fixar em 1/120 garante
+            // que cada step é sempre igual, e o sub-step resolve a curva
+            // com 4x mais amostras. Movimento fica reproduzível.
+            const b2World = box2d.Dynamics.b2World;
+            const FIXED_DT = 1 / 120;
+            const SUBSTEPS = 4;
+            const MAX_ACCUM = 0.05;
+            let accum = 0;
 
             const origStep = b2World.prototype.Step;
             b2World.prototype.Step = function(dt, vIter, pIter) {
-                // Se o jogo já passa dt fixo, só substep. Se não, normaliza.
-                const inDt = (dt > 0 && dt < 0.5) ? dt : FIXED_DT;
-                accumulator = Math.min(accumulator + inDt, MAX_ACCUM);
-
+                accum += (dt > 0 && dt < 0.5) ? dt : FIXED_DT;
+                if (accum > MAX_ACCUM) accum = MAX_ACCUM;
                 const sdt = FIXED_DT / SUBSTEPS;
-                while (accumulator >= FIXED_DT) {
+                while (accum >= FIXED_DT) {
                     for (let i = 0; i < SUBSTEPS; i++) {
                         origStep.call(this, sdt, vIter, pIter);
                     }
-                    accumulator -= FIXED_DT;
+                    accum -= FIXED_DT;
                 }
             };
 
-            console.log("%c[SMOOTH] substep=3, fixedDt=1/120, slop=0.001", "color:#0f0;font-weight:bold");
+            // ─── 2. RENDER SUAVE ───
+            const waitPixi = setInterval(() => {
+                if (typeof PIXI === 'undefined') return;
+                clearInterval(waitPixi);
+
+                if (PIXI.settings) {
+                    PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.LINEAR;
+                    PIXI.settings.ROUND_PIXELS = false;
+                }
+                if (PIXI.Ticker && PIXI.Ticker.shared) {
+                    PIXI.Ticker.shared.minFPS = 0;
+                    PIXI.Ticker.shared.maxFPS = 0;
+                    PIXI.Ticker.shared.speed  = 1;
+                }
+                if (PIXI.Renderer) {
+                    const oR = PIXI.Renderer.prototype.render;
+                    PIXI.Renderer.prototype.render = function(s, opt) {
+                        this.roundPixels = false;
+                        return oR.call(this, s, opt);
+                    };
+                }
+
+                console.log("%c[ENGINE-SMOOTH] ativo", "color:#0f0;font-weight:bold");
+            }, 100);
+
         } catch (e) {
-            console.error("[SMOOTH] erro:", e);
+            console.error("[ENGINE-SMOOTH] erro:", e);
         }
     })();
     // ═══════════════════════════════════════════
