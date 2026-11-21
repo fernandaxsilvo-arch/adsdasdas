@@ -1,280 +1,5 @@
 requirejs(["socketio", "peer.min", "physics/box2dweb/Box2DModuleGJMod"], function(socketio, peerjs, box2d) {
 "use strict";
-
-	    // ═══════════ RENDER INTERPOLATION ═══════════
-    (function() {
-        try {
-            const b2World = box2d.Dynamics.b2World;
-            const b2Body  = box2d.Dynamics.b2Body;
-
-            const TICK_MS = 1000 / 240;
-            const prevPos = new WeakMap();
-            const currPos = new WeakMap();
-            let lastStepTime = performance.now();
-
-            const origStep = b2World.prototype.Step;
-            b2World.prototype.Step = function(dt, vIter, pIter) {
-                for (let b = this.GetBodyList(); b; b = b.GetNext()) {
-                    if (b.GetType() !== b2Body.b2_dynamicBody) continue;
-                    const c = b.GetPosition();
-                    const prev = currPos.get(b);
-                    if (prev) prevPos.set(b, prev);
-                    else      prevPos.set(b, { x: c.x, y: c.y });
-                }
-                const r = origStep.call(this, dt, vIter, pIter);
-                for (let b = this.GetBodyList(); b; b = b.GetNext()) {
-                    if (b.GetType() !== b2Body.b2_dynamicBody) continue;
-                    const c = b.GetPosition();
-                    currPos.set(b, { x: c.x, y: c.y });
-                }
-                lastStepTime = performance.now();
-                return r;
-            };
-
-            const waitPixi = setInterval(() => {
-                if (typeof PIXI === 'undefined' || !PIXI.Renderer) return;
-                clearInterval(waitPixi);
-
-                const origRender = PIXI.Renderer.prototype.render;
-                PIXI.Renderer.prototype.render = function(stage, opt) {
-                    const world = window.game_ && window.game_.world;
-                    if (!world) return origRender.call(this, stage, opt);
-
-                    const now = performance.now();
-                    let alpha = (now - lastStepTime) / TICK_MS;
-                    if (alpha < 0) alpha = 0;
-                    if (alpha > 1) alpha = 1;
-
-                    const restore = [];
-                    for (let b = world.GetBodyList(); b; b = b.GetNext()) {
-                        if (b.GetType() !== b2Body.b2_dynamicBody) continue;
-                        const prev = prevPos.get(b);
-                        const curr = currPos.get(b);
-                        if (!prev || !curr) continue;
-                        const o = b.GetPosition();
-                        restore.push([b, o.x, o.y]);
-                        b.m_xf.position.x = prev.x + (curr.x - prev.x) * alpha;
-                        b.m_xf.position.y = prev.y + (curr.y - prev.y) * alpha;
-                    }
-                    try { return origRender.call(this, stage, opt); }
-                    finally {
-                        for (let i = 0; i < restore.length; i++) {
-                            restore[i][0].m_xf.position.x = restore[i][1];
-                            restore[i][0].m_xf.position.y = restore[i][2];
-                        }
-                    }
-                };
-                console.log("%c[INTERP] render interpolation ativo", "color:#0f0;font-weight:bold");
-            }, 100);
-        } catch (e) { console.error("[INTERP] erro:", e); }
-    })();
-
-	    // ═══════════ PRECISION CONTROL ═══════════
-    (function() {
-        // ─── captura teclas no instante do evento ───
-        const held = new Set();
-        const ALIAS = {
-            KeyW: 'up',    ArrowUp:    'up',
-            KeyS: 'down',  ArrowDown:  'down',
-            KeyA: 'left',  ArrowLeft:  'left',
-            KeyD: 'right', ArrowRight: 'right',
-            Space: 'jump'
-        };
-        window.addEventListener('keydown', e => {
-            if (!e.repeat) held.add(e.code);
-        }, { capture: true });
-        window.addEventListener('keyup', e => {
-            held.delete(e.code);
-        }, { capture: true });
-        window.addEventListener('blur', () => held.clear(), { capture: true });
-
-        // ─── descoberta: mostra o que o jogo usa ───
-        setTimeout(() => {
-            const info = {};
-            if (window.xo) {
-                info.xo_keys = Object.keys(window.xo).filter(k => /key|ctrl|control|input/i.test(k));
-                if (window.xo.customControls) {
-                    info.customControls = Object.keys(window.xo.customControls);
-                }
-            }
-            if (window.game_) {
-                info.game_keys = Object.keys(window.game_).filter(k => /key|ctrl|control|input/i.test(k));
-            }
-            console.log("%c[PRECISION] discovery:", "color:#0f0", info);
-        }, 3000);
-
-        // ─── patch Step: injeta input antes de cada tick ───
-        const tryPatch = () => {
-            if (typeof box2d === 'undefined' || !box2d.Dynamics || !box2d.Dynamics.b2World) return false;
-            const origStep = box2d.Dynamics.b2World.prototype.Step;
-            if (origStep.__rna_patched) return true;
-
-            box2d.Dynamics.b2World.prototype.Step = function(dt, vIter, pIter) {
-                const cc = window.xo && window.xo.customControls;
-                if (cc && typeof cc === 'object') {
-                    try {
-                        for (const code of held) {
-                            const slot = ALIAS[code];
-                            if (slot && slot in cc) cc[slot] = true;
-                        }
-                        // limpa teclas soltas (que estão em cc mas não em held)
-                        for (const slot in ALIAS) {}
-                        for (const code in ALIAS) {} // noop
-                        // checa cada slot e desliga se nenhuma tecla correspondente está held
-                        const slots = { up:['KeyW','ArrowUp'], down:['KeyS','ArrowDown'], left:['KeyA','ArrowLeft'], right:['KeyD','ArrowRight'], jump:['Space'] };
-                        for (const s in slots) {
-                            if (s in cc) cc[s] = slots[s].some(k => held.has(k));
-                        }
-                    } catch (e) {}
-                }
-                return origStep.call(this, dt, vIter, pIter);
-            };
-            box2d.Dynamics.b2World.prototype.Step.__rna_patched = true;
-            console.log("%c[PRECISION] input-in-step ativo", "color:#0f0;font-weight:bold");
-            return true;
-        };
-
-        const iv = setInterval(() => {
-            if (tryPatch()) clearInterval(iv);
-        }, 200);
-        setTimeout(() => clearInterval(iv), 30000); // para de tentar após 30s
-    })();
-    // ═══════════════════════════════════════════════
-
-	    // ═══════════ MAX SMOOTH (240Hz sim + visual interp) ═══════════
-    (function() {
-        try {
-            const b2World = box2d.Dynamics.b2World;
-
-            const TICK      = 1 / 240;   // física fixa em 240Hz
-            const SUBSTEPS  = 2;         // 480Hz de resolução efetiva
-            const MAX_ACCUM = 0.04;
-            const MAX_STEPS = 8;
-            let   accum     = 0;
-            let   alpha     = 0;         // fração entre ticks (render interp)
-
-            const origStep = b2World.prototype.Step;
-            b2World.prototype.Step = function(dt, vIter, pIter) {
-                accum += (dt > 0 && dt < 0.5) ? dt : TICK;
-                if (accum > MAX_ACCUM) accum = MAX_ACCUM;
-
-                const sdt = TICK / SUBSTEPS;
-                let n = 0;
-                while (accum >= TICK && n < MAX_STEPS) {
-                    for (let i = 0; i < SUBSTEPS; i++) {
-                        origStep.call(this, sdt, vIter, pIter);
-                    }
-                    accum -= TICK;
-                    n++;
-                }
-                alpha = accum / TICK;    // 0..1, quanto passou do último tick
-            };
-
-            // ── Ticker do PIXI: garante render a cada rAF, sem cap ──
-            const waitPixi = setInterval(function() {
-                if (typeof PIXI === 'undefined') return;
-                clearInterval(waitPixi);
-
-                if (PIXI.Ticker && PIXI.Ticker.shared) {
-                    PIXI.Ticker.shared.maxFPS = 0;
-                    PIXI.Ticker.shared.minFPS = 0;
-                    PIXI.Ticker.shared.autoStart = true;
-                }
-
-                // ── Render interp: puxa posições visuais entre último e penúltimo tick ──
-                // Nota: bonk.io não expõe lista de entidades pública, então
-                // aplicamos no stage do PIXI via transform cacheado.
-                // Se o jogo não usar PIXI.stage pra entidades, este bloco é no-op seguro.
-                if (PIXI.Renderer && PIXI.Renderer.prototype.render) {
-                    const oR = PIXI.Renderer.prototype.render;
-                    PIXI.Renderer.prototype.render = function(stage, opt) {
-                        return oR.call(this, stage, opt);
-                    };
-                }
-
-                console.log("%c[MAX-SMOOTH] sim=240Hz substep=2 (480Hz eff), visual interp=on", "color:#0f0;font-weight:bold");
-            }, 100);
-
-        } catch (e) {
-            console.error("[MAX-SMOOTH] erro:", e);
-        }
-    })();
-    // ═══════════════════════════════════════════════════════════════
-
-         // ═══════════ ENGINE MAX (sem dessinc) ═══════════
-    (function() {
-        try {
-            const b2World = box2d.Dynamics.b2World;
-
-            // 240Hz fixo. Teto útil. Acima dessinc.
-            const TICK      = 1 / 240;
-            const SUBSTEPS  = 2;         // 480Hz effective
-            const MAX_ACCUM = 0.04;
-            const MAX_STEPS = 8;
-            let   accum     = 0;
-
-            const origStep = b2World.prototype.Step;
-            b2World.prototype.Step = function(dt, vIter, pIter) {
-                accum += (dt > 0 && dt < 0.5) ? dt : TICK;
-                if (accum > MAX_ACCUM) accum = MAX_ACCUM;
-                const sdt = TICK / SUBSTEPS;
-                let n = 0;
-                while (accum >= TICK && n < MAX_STEPS) {
-                    for (let i = 0; i < SUBSTEPS; i++) {
-                        origStep.call(this, sdt, vIter, pIter);
-                    }
-                    accum -= TICK;
-                    n++;
-                }
-            };
-
-            // ─── Canvas: desync + sem leitura ───
-            const origCtx = HTMLCanvasElement.prototype.getContext;
-            HTMLCanvasElement.prototype.getContext = function(type, attrs) {
-                if (type === 'webgl' || type === 'webgl2' || type === '2d') {
-                    attrs = attrs || {};
-                    attrs.desynchronized        = true;   // bypass compositor buffer
-                    attrs.antialias             = false;
-                    attrs.powerPreference       = 'high-performance';
-                    attrs.failIfMajorPerformanceCaveat = false;
-                    attrs.willReadFrequently    = false;
-                    attrs.alpha                 = false;   // menos banda
-                    attrs.depth                 = false;
-                    attrs.stencil               = false;
-                    attrs.preserveDrawingBuffer = false;
-                }
-                return origCtx.call(this, type, attrs);
-            };
-
-            // ─── PIXI: ticker livre, sem pixel snap ───
-            const waitPixi = setInterval(function() {
-                if (typeof PIXI === 'undefined') return;
-                clearInterval(waitPixi);
-
-                if (PIXI.Ticker && PIXI.Ticker.shared) {
-                    PIXI.Ticker.shared.maxFPS = 0;
-                    PIXI.Ticker.shared.minFPS = 0;
-                }
-                if (PIXI.settings) {
-                    PIXI.settings.ROUND_PIXELS = false;
-                    PIXI.settings.SCALE_MODE   = PIXI.SCALE_MODES.LINEAR;
-                }
-                if (PIXI.Renderer) {
-                    const oR = PIXI.Renderer.prototype.render;
-                    PIXI.Renderer.prototype.render = function(s, opt) {
-                        this.roundPixels = false;
-                        return oR.call(this, s, opt);
-                    };
-                }
-            }, 100);
-
-            console.log("%c[ENGINE-MAX] 240Hz sim / 480Hz eff / canvas desync / pixi free", "color:#0f0;font-weight:bold");
-        } catch (e) {
-            console.error("[ENGINE-MAX] erro:", e);
-        }
-    })();
-    // ═══════════════════════════════════════════════════
-	
 function SkinManager() {
 	let editSkin, skinLayerSelectWindow;
 	function skinLayerZoom(e) {
@@ -11617,13 +11342,16 @@ let upTap = false,
 		swing = false
 	};
 
+    // ══════ SOCD: ultima direcao horizontal vence (so no input local, sem desync) ══════
+    const SOCD_LAST_WINS = true;
+    let lastHoriz = null;
     // ══════ TAP LATCHING ══════
     const _wrapPress = function(kb, flag) {
         const _orig = kb.press;
         kb.press = function() {
             if (_orig) _orig();
-            if (flag === "left")  leftTap  = true;
-            if (flag === "right") rightTap = true;
+            if (flag === "left")  { leftTap  = true; lastHoriz = "left"; }
+            if (flag === "right") { rightTap = true; lastHoriz = "right"; }
             if (flag === "up")    upTap    = true;
             if (flag === "down")  downTap  = true;
             if (flag === "heavy") heavyTap = true;
@@ -11642,6 +11370,9 @@ let upTap = false,
         const f459v0 = {};
         f459v0.left    = left    || leftTap;
         f459v0.right   = right   || rightTap;
+        if (SOCD_LAST_WINS && f459v0.left && f459v0.right && lastHoriz) {
+            if (lastHoriz === "left") f459v0.right = false; else f459v0.left = false;
+        }
         f459v0.up      = up      || upTap;
         f459v0.down    = down    || downTap;
         f459v0.action  = heavy   || heavyTap;
