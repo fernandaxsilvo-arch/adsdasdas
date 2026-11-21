@@ -11157,6 +11157,14 @@ class ShapeRenderer {
 		this.playerArray = null
 	}
 }
+// ══════ RENDER AHEAD (so visual, nao mexe na fisica => sem desync) ══════
+// O render padrao mostra a bola entre o step anterior e o atual, ou seja ~1 step (33ms) atrasado.
+// Aqui desenhamos a bola um pouco a frente, extrapolando pela velocidade do ultimo step.
+// 0 = desligado (padrao do jogo) | 0.5 = metade do atraso compensado | 1 = atraso todo compensado
+// Valores altos podem "furar" parede por 1 frame em batidas (so visual).
+const RENDER_AHEAD_LOCAL  = 0.5;  // sua bola
+const RENDER_AHEAD_OTHERS = 0.5;  // bolas dos outros
+// ══════ FIM RENDER AHEAD ══════
 function InputHandler() {
 	let up = false;
 	let down = false;
@@ -11705,8 +11713,17 @@ class PlayerRenderer {
 			prevY = currentY;
 			prevAngle = currentAngle
 		}
-const _targetX = (1 - t) * prevX + t * currentX;
-const _targetY = (1 - t) * prevY + t * currentY;
+let _tp = t;
+{
+    const _ra = this.local ? RENDER_AHEAD_LOCAL : RENDER_AHEAD_OTHERS;
+    if (_ra > 0) {
+        const _jx = currentX - prevX, _jy = currentY - prevY;
+        // ignora teleporte/respawn (salto grande entre steps)
+        if (Math.sqrt(_jx * _jx + _jy * _jy) < this.radius * 6) _tp = t + _ra;
+    }
+}
+const _targetX = (1 - _tp) * prevX + _tp * currentX;
+const _targetY = (1 - _tp) * prevY + _tp * currentY;
 if (this.local) {
     this.container.x = _targetX;
     this.container.y = _targetY;
